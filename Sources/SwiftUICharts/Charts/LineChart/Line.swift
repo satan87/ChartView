@@ -1,8 +1,10 @@
 import SwiftUI
 
 public struct Line: View {
+    @EnvironmentObject var chartValue: ChartValue
     @State var frame: CGRect = .zero
-    @State var data: [Double]
+    @ObservedObject var chartData: ChartData
+
     var style: ChartStyle
 
     @State var showIndicator: Bool = false
@@ -11,11 +13,11 @@ public struct Line: View {
     @State var showBackground: Bool = true
     var curvedLines: Bool = true
     var step: CGPoint {
-        return CGPoint.getStep(frame: frame, data: data)
+        return CGPoint.getStep(frame: frame, data: chartData.data)
     }
 
     var path: Path {
-        let points = data
+        let points = chartData.data
 
         if curvedLines {
             return Path.quadCurvedPathWithPoints(points: points,
@@ -27,7 +29,7 @@ public struct Line: View {
     }
     
     var closedPath: Path {
-        let points = data
+        let points = chartData.data
 
         if curvedLines {
             return Path.quadClosedCurvedPathWithPoints(points: points,
@@ -59,10 +61,13 @@ public struct Line: View {
                 .onChanged({ value in
                     self.touchLocation = value.location
                     self.showIndicator = true
+                    self.getClosestDataPoint(point: self.getClosestPointOnPath(touchLocation: value.location))
+                    self.chartValue.interactionInProgress = true
                 })
                 .onEnded({ value in
                     self.touchLocation = .zero
                     self.showIndicator = false
+                    self.chartValue.interactionInProgress = false
                 })
             )
         }
@@ -77,11 +82,24 @@ extension Line {
         return closest
     }
 
+    private func getClosestDataPoint(point: CGPoint) {
+        let index = Int(round((point.x)/step.x))
+        if (index >= 0 && index < self.chartData.data.count){
+            self.chartValue.currentValue = self.chartData.data[index]
+        }
+    }
+
     private func getBackgroundPathView() -> some View {
         self.closedPath
-            .fill(style.backgroundColor.linearGradient(from: .bottom, to: .top))
+            .fill(LinearGradient(gradient: Gradient(colors: [
+                                                        style.foregroundColor.first?.startColor ?? .white,
+                                                        style.foregroundColor.first?.endColor ?? .white,
+                                                        .white]),
+                                 startPoint: .bottom,
+                                 endPoint: .top))
             .rotationEffect(.degrees(180), anchor: .center)
             .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+            .opacity(0.2)
             .transition(.opacity)
             .animation(.easeIn(duration: 1.6))
     }
@@ -109,8 +127,8 @@ extension Line {
 struct Line_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            Line(data: [1, 2, 3, 1, 2, 5, 7], style: blackLineStyle)
-            Line(data: [1, 2, 3, 1, 2, 5, 7], style: redLineStyle)
+            Line(chartData:  ChartData([8, 23, 32, 7, 23, 43]), style: blackLineStyle)
+            Line(chartData:  ChartData([8, 23, 32, 7, 23, 43]), style: redLineStyle)
         }
     }
 }
